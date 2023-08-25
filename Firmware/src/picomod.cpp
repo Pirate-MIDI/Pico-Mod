@@ -18,6 +18,9 @@ MCP41 digipot;
 GlobalConfig globalConfig;
 Preset preset;
 
+// LEDs
+Adafruit_NeoPixel leds(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+
 // Private Function Prototypes
 void picoMod_Boot();
 void picoMod_NewDevice();
@@ -31,6 +34,11 @@ void switch1Handler(ButtonState state);
 void switch2Handler(ButtonState state);
 void genSwitchHandler(uint8_t index, ButtonState state);
 void processAction(Action* action);
+void processMidiActionEvent(ActionEvent* event);
+void processExpActionEvent(ActionEvent* event);
+void processOutputActionEvent(ActionEvent* event);
+void processLedActionEvent(ActionEvent* event);
+
 
 //-------------------- Global Functions --------------------//
 void picoMod_Init()
@@ -320,31 +328,34 @@ void processAction(Action* action)
 	switch(action->type)
 	{
 		case ActionEventMidi:
-		
+		processMidiActionEvent(&action->event);
 		break;
 
 		case ActionEventExp:
-
+		processExpActionEvent(&action->event);
 		break;
 
 		case ActionEventOutput:
-
+		processOutputActionEvent(&action->event);
 		break;
 
 		case ActionEventLed:
-
+		processLedActionEvent(&action->event);
 		break;
 	}
 }
 
 void processMidiActionEvent(ActionEvent* event)
 {
-	
+	trsMidi.send(	event->midiMessage.type,
+						event->midiMessage.data1,
+						event->midiMessage.data2,
+						event->midiMessage.channel);
 }
 
-void processOutputActionEvent(ActionEvent* event)
+void processExpActionEvent(ActionEvent* event)
 {
-	
+	mcp41_Write(&digipot, event->expMessage.value);
 }
 
 void processOutputActionEvent(ActionEvent* event)

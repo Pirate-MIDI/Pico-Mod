@@ -8,6 +8,7 @@
 #include "Adafruit_TinyUSB.h"
 #include "EEPROM.h"
 #include "buttons.h"
+#include "Adafruit_NeoPixel.h"
 
 //------------- Pin Definitions -------------//
 // Switch Inputs
@@ -33,6 +34,9 @@
 #define GP6_PIN         	28
 #define GP7_PIN         	29
 
+// UI
+#define LED_PIN				17
+
 
 //----------- Config Stack Sizes -----------//
 #define NUM_PRESETS			127
@@ -44,6 +48,8 @@
 //-------------- Config Flags --------------//
 #define DEVICE_CONFIGURED_VALUE 114
 #define DEFAULT_DEVICE_NAME		"New Pico Mod"
+
+#define NUM_LEDS						12
 
 
 //------------------ Types -----------------//
@@ -58,7 +64,7 @@ typedef struct
 typedef struct
 {
 	uint8_t channel;
-	uint8_t type;
+	MIDI_NAMESPACE::MidiType type;
 	uint8_t data1;
 	uint8_t data2;
 } MidiMessage;
@@ -161,7 +167,7 @@ extern Button switches[NUM_SWITCHES];
 extern MCP41 digipot;
 extern GlobalConfig globalConfig;
 extern Preset preset;
-
+extern Adafruit_NeoPixel leds;
 
 //-------------------- Global Functions --------------------//
 void picoMod_Init();
