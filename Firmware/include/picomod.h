@@ -39,7 +39,7 @@
 
 
 //----------- Config Stack Sizes -----------//
-#define NUM_PRESETS			127
+#define NUM_PRESETS			128
 #define NUM_SWITCH_ACTIONS	16
 #define DEVICE_NAME_LEN		16
 #define NUM_SWITCHES			2
@@ -78,14 +78,21 @@ typedef enum
 {
 	OutputBypassRelay,
 	OutputAuxRelay,
-	OutputAnalog,
+	OutputAnalogSwitch,
 	OutputGpio
 } OutputTarget;
+
+typedef enum
+{
+	OutputOn = 0,
+	OutputOff,
+	OutputToggle
+} OutputValue;
 
 typedef struct
 {
 	OutputTarget target;
-	uint8_t value;
+	OutputValue value;
 } OutputMessage;
 
 typedef struct
@@ -121,9 +128,10 @@ typedef enum
 	TriggerGpio5,
 	TriggerGpio6,
 	TriggerGpio7,
-	MidiCC,
-	MidiNoteOn,
-	MidiNoteOff,
+	TriggerCC,
+	TriggerEnterBank,
+	TriggerExitBank,
+	TriggerBoot,
 	TriggerNone
 } TriggerType;
 
@@ -157,6 +165,12 @@ typedef struct
 {
 	uint8_t numActions;
 	Action actions[NUM_SWITCH_ACTIONS];
+	uint16_t expValue;
+	uint8_t switch1State;
+	uint8_t switch2State;
+	uint8_t analogSwitchState;
+	uint8_t bypassRelayState;
+	uint8_t auxRelayState;
 } Preset;
 
 //------------- Global Variables -------------/
@@ -169,15 +183,37 @@ extern GlobalConfig globalConfig;
 extern Preset preset;
 extern Adafruit_NeoPixel leds;
 
-//-------------------- Global Functions --------------------//
+//------------------ System ------------------//
 void picoMod_Init();
+
+//------------------ GPIO -------------------//
 void relayBypassOn();
 void relayBypassOff();
 void relayBypassToggle();
 void relayAuxOn();
 void relayAuxOff();
 void relayAuxToggle();
+void analogSwitchOn();
+void analogSwitchOff();
+void analogSwitchToggle();
 bool getSwitch1State();
 bool getSwitch2State();
+
+//------------ Preset Management ------------//
+void readCurrentPreset();
+void saveCurrentPreset();
+void readGlobalConfig();
+void saveGlobalConfig();
+void presetUp();
+void presetDown();
+void goToPreset(uint8_t newPreset);
+
+//----------- Action Handling -----------//
+void processTriggers(TriggerType triggerType);
+void processAction(Action* action);
+void processMidiActionEvent(ActionEvent* event);
+void processExpActionEvent(ActionEvent* event);
+void processOutputActionEvent(ActionEvent* event);
+void processLedActionEvent(ActionEvent* event);
 
 #endif /* PICOMOD_H_ */

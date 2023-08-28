@@ -39,8 +39,15 @@ void processExpActionEvent(ActionEvent* event);
 void processOutputActionEvent(ActionEvent* event);
 void processLedActionEvent(ActionEvent* event);
 
+void noteOnHandler(byte channel, byte note, byte velocity);
+void noteOffHandler(byte channel, byte note, byte velocity);
+void controlChangeHandler(byte channel, byte number, byte value);
+void programChangeHandler(byte channel, byte number);
+void systemExclusiveHandler(byte* array, unsigned size);
+
 
 //-------------------- Global Functions --------------------//
+//------------------ System ------------------//
 void picoMod_Init()
 {
 	// GPIO config
@@ -69,6 +76,11 @@ void picoMod_Init()
 	buttons[1].pin = SWITCH2_PIN;
 	buttons_Init(&buttons[0]);
 	buttons_Init(&buttons[1]);
+
+	// LEDs
+	leds.begin();
+	leds.clear();
+	leds.show();
 
 	// Serial config
 	Serial.begin(9600);
@@ -99,46 +111,72 @@ void picoMod_Init()
 		// New device requiring setup and default config
 		picoMod_NewDevice();
 	}
-	delay(5000);
-	
-
 
 	// Begin MIDI listening
 	trsMidi.begin(globalConfig.midiChannel);
 	usbMidi.begin(globalConfig.midiChannel); 
+
+	// Active boot actions
+	processTriggers(TriggerBoot);
 }
 
+
+//------------------ GPIO -------------------//
 // These functions are wrappers for the onboard GPIO.
 // A slight performance overhead is incurred due to the additional function call,
 // however, for an inexperienced embedded programmer, they may be easier to use.
 void relayBypassOn()
 {
-	digitalWrite(BYPASS_RELAY_PIN, HIGH);
+	preset.bypassRelayState = 1;
+	gpio_put(BYPASS_RELAY_PIN, 1);
 }
 
 void relayBypassOff()
 {
-	digitalWrite(BYPASS_RELAY_PIN, LOW);
+	preset.bypassRelayState = 0;
+	gpio_put(BYPASS_RELAY_PIN, LOW);
 }
 
 void relayBypassToggle()
 {
-
+	preset.bypassRelayState =! preset.bypassRelayState;
+	gpio_put(BYPASS_RELAY_PIN, preset.bypassRelayState);
 }
 
 void relayAuxOn()
 {
-	digitalWrite(AUX_RELAY_PIN, HIGH);
+	preset.auxRelayState = 1;
+	gpio_put(AUX_RELAY_PIN, 1);
 }
 
 void relayAuxOff()
 {
-	digitalWrite(AUX_RELAY_PIN, LOW);
+	preset.auxRelayState = 0;
+	gpio_put(AUX_RELAY_PIN, 0);
 }
 
 void relayAuxToggle()
 {
+	preset.auxRelayState =! preset.auxRelayState;
+	gpio_put(BYPASS_RELAY_PIN, preset.auxRelayState);
+}
 
+void analogSwitchOn()
+{
+	preset.analogSwitchState = 1;
+	gpio_put(AUX_RELAY_PIN, 1);
+}
+
+void analogSwitchOff()
+{
+	preset.analogSwitchState = 0;
+	gpio_put(AUX_RELAY_PIN, 0);
+}
+
+void analogSwitchToggle()
+{
+	preset.analogSwitchState =! preset.analogSwitchState;
+	gpio_put(BYPASS_RELAY_PIN, preset.analogSwitchState);
 }
 
 bool getSwitch1State()
@@ -149,73 +187,6 @@ bool getSwitch1State()
 bool getSwitch2State()
 {
 	return gpio_get(SWITCH2_PIN);
-}
-
-
-//-------------------- Local Functions --------------------//
-//------------------ System ------------------//
-// Standard boot procedure and EEPROM recall
-void picoMod_Boot()
-{
-  // Read the preset data
-  for (uint8_t i = 0; i < NUM_PRESETS; i++)
-  {
-    EEPROM.get(sizeof(GlobalConfig) + sizeof(Preset) * i, preset);
-  }
-}
-
-// Configures the device to the default state
-void picoMod_NewDevice()
-{
-	globalConfig.bootState = DEVICE_CONFIGURED_VALUE;
-	globalConfig.currentPreset = 0;
-	globalConfig.midiChannel = MIDI_CHANNEL_OMNI;
-	strcpy(globalConfig.deviceName, DEFAULT_DEVICE_NAME);
-	// Save the default config to eeprom
-	EEPROM.put(0, globalConfig);
-
-	// Initialise all presets to contain no triggered actions
-	for (uint8_t i = 0; i < NUM_PRESETS; i++)
-	{
-		preset.numActions = 0;
-		for(uint8_t j=0; j<NUM_SWITCH_ACTIONS; j++)
-		{
-			preset.actions[j].trigger.type = TriggerNone;
-		}
-		EEPROM.put(sizeof(GlobalConfig) + sizeof(Preset) * i, preset);
-	}
-	EEPROM.commit();
-
-	softwareReset();
-}
-
-void picoMod_PrintSystem()
-{
-	// Print device structure information
-	Serial.print("Pico Mod: ");
-	Serial.print(globalConfig.deviceName);
-	Serial.print("   FW: ");
-	Serial.println(FW_VERSION);
-	Serial.print("Global configuration size: ");
-	Serial.println(sizeof(GlobalConfig));
-	Serial.print("Preset size: ");
-	Serial.print(sizeof(Preset));
-	Serial.print(" * ");
-	Serial.print(NUM_PRESETS);
-	Serial.print(". Total preset size: ");
-	Serial.println(sizeof(Preset)*NUM_PRESETS);
-}
-
-// Returns the UID of the NOR flash chip
-// str must have at least 2*PICO_UNIQUE_BOARD_ID_SIZE_BYTES +1 allocated (17 chars)
-void getFlashUid(char* str)
-{
-  pico_get_unique_board_id_string(str, 2*PICO_UNIQUE_BOARD_ID_SIZE_BYTES +1);
-}
-
-void softwareReset()
-{
-  watchdog_reboot(0, 0, 0);
 }
 
 
@@ -247,6 +218,8 @@ void saveGlobalConfig()
 
 void presetUp()
 {
+	// Handle any actions triggered by the bank exit
+  processTriggers(TriggerExitBank);
   // Increment presets
   if(globalConfig.currentPreset >= NUM_PRESETS)
   {
@@ -258,10 +231,14 @@ void presetUp()
   }
   readCurrentPreset();
   saveGlobalConfig();
+  // Handle any actions triggered by the bank entry
+  processTriggers(TriggerEnterBank);
 }
 
 void presetDown()
 {
+	// Handle any actions triggered by the bank exit
+  processTriggers(TriggerExitBank);
   // Increment presets
   if(globalConfig.currentPreset == 0)
   {
@@ -273,6 +250,8 @@ void presetDown()
   }
   readCurrentPreset();
   saveGlobalConfig();
+  // Handle any actions triggered by the bank entry
+  processTriggers(TriggerEnterBank);
 }
 
 void goToPreset(uint8_t newPreset)
@@ -281,44 +260,26 @@ void goToPreset(uint8_t newPreset)
   {
     return;
   }
+  // Handle any actions triggered by the bank exit
+  processTriggers(TriggerExitBank);
   globalConfig.currentPreset = newPreset;
   readCurrentPreset();
   saveGlobalConfig();
+  // Handle any actions triggered by the bank entry
+  processTriggers(TriggerEnterBank);
 }
 
 
-//------------- Switch Inputs -------------//
-void switch1ISR()
-{
-	buttons_ExtiGpioCallback(&buttons[0], ButtonEmulateNone);
-}
-
-void switch2ISR()
-{
-	buttons_ExtiGpioCallback(&buttons[1], ButtonEmulateNone);
-}
-
-void switch1Handler(ButtonState state)
-{
-	genSwitchHandler(0, state);
-}
-
-void switch2Handler(ButtonState state)
-{
-	genSwitchHandler(1, state);
-}
-
-void genSwitchHandler(uint8_t index, ButtonState state)
+//----------- Action Handling -----------//
+void processTriggers(TriggerType triggerType)
 {
 	// Check for any assigned actions
+	for(uint8_t action=0; action<preset.numActions; action++)
 	{
-		for(uint8_t action=0; action<preset.numActions; action++)
+		// Corresponding TriggerType enum matches the switch index
+		if(preset.actions[action].trigger.type == triggerType)
 		{
-			// Corresponding TriggerType enum matches the switch index
-			if(preset.actions[action].trigger.type == index)
-			{
-				processAction(&preset.actions[action]);
-			}
+			processAction(&preset.actions[action]);
 		}
 	}
 }
@@ -360,10 +321,179 @@ void processExpActionEvent(ActionEvent* event)
 
 void processOutputActionEvent(ActionEvent* event)
 {
+	OutputTarget target = event->outputMessage.target;
+	OutputValue value = event->outputMessage.value;
+	switch(target)
+	{
+		case OutputBypassRelay:
+		if(value == OutputOn)
+		{
+			relayBypassOn();
+		}
+		else if(value == OutputOff)
+		{
+			relayBypassOff();
+		}
+		else if(value == OutputToggle)
+		{
+			relayBypassToggle();
+		}
+		break;
 
+		case OutputAuxRelay:
+		if(value == OutputOn)
+		{
+			relayAuxOn();
+		}
+		else if(value == OutputOff)
+		{
+			relayAuxOff();
+		}
+		else if(value == OutputToggle)
+		{
+			relayAuxToggle();
+		}
+		break;
+
+		case OutputAnalogSwitch:
+		if(value == OutputOn)
+		{
+			analogSwitchOn();
+		}
+		else if(value == OutputOff)
+		{
+			analogSwitchOff();
+		}
+		else if(value == OutputToggle)
+		{
+			analogSwitchToggle();
+		}
+		break;
+	}
 }
 
 void processLedActionEvent(ActionEvent* event)
+{
+	leds.setPixelColor(event->ledMessage.index, event->ledMessage.colour);
+	leds.show();
+}
+
+
+//-------------------- Local Functions --------------------//
+//------------------ System ------------------//
+// Standard boot procedure and EEPROM recall
+void picoMod_Boot()
+{
+  // Read the preset data
+  for (uint8_t i = 0; i < NUM_PRESETS; i++)
+  {
+    EEPROM.get(sizeof(GlobalConfig) + sizeof(Preset) * i, preset);
+  }
+}
+
+// Configures the device to the default state
+void picoMod_NewDevice()
+{
+	globalConfig.bootState = DEVICE_CONFIGURED_VALUE;
+	globalConfig.currentPreset = 0;
+	globalConfig.midiChannel = MIDI_CHANNEL_OMNI;
+	strcpy(globalConfig.deviceName, DEFAULT_DEVICE_NAME);
+	// Save the default config to eeprom
+	EEPROM.put(0, globalConfig);
+
+	// Initialise all presets to contain no actions and default states
+	for (uint8_t i = 0; i < NUM_PRESETS; i++)
+	{
+		preset.expValue = 127;
+		preset.switch1State = 0;
+		preset.switch2State = 0;
+		preset.analogSwitchState = 0;
+		preset.bypassRelayState = 0;
+		preset.auxRelayState = 0;
+		preset.numActions = 0;
+		for(uint8_t j=0; j<NUM_SWITCH_ACTIONS; j++)
+		{
+			preset.actions[j].trigger.type = TriggerNone;
+		}
+		EEPROM.put(sizeof(GlobalConfig) + sizeof(Preset) * i, preset);
+	}
+
+	EEPROM.commit();
+	softwareReset();
+}
+
+void picoMod_PrintSystem()
+{
+	// Print device structure information
+	Serial.print("Pico Mod: ");
+	Serial.print(globalConfig.deviceName);
+	Serial.print("   FW: ");
+	Serial.println(FW_VERSION);
+	Serial.print("Global configuration size: ");
+	Serial.println(sizeof(GlobalConfig));
+	Serial.print("Preset size: ");
+	Serial.print(sizeof(Preset));
+	Serial.print(" * ");
+	Serial.print(NUM_PRESETS);
+	Serial.print(". Total preset size: ");
+	Serial.println(sizeof(Preset)*NUM_PRESETS);
+}
+
+// Returns the UID of the NOR flash chip
+// str must have at least 2*PICO_UNIQUE_BOARD_ID_SIZE_BYTES +1 allocated (17 chars)
+void getFlashUid(char* str)
+{
+  pico_get_unique_board_id_string(str, 2*PICO_UNIQUE_BOARD_ID_SIZE_BYTES +1);
+}
+
+void softwareReset()
+{
+  watchdog_reboot(0, 0, 0);
+}
+
+
+//------------- Switch Inputs -------------//
+void switch1ISR()
+{
+	buttons_ExtiGpioCallback(&buttons[0], ButtonEmulateNone);
+}
+
+void switch2ISR()
+{
+	buttons_ExtiGpioCallback(&buttons[1], ButtonEmulateNone);
+}
+
+void switch1Handler(ButtonState state)
+{
+	genSwitchHandler(0, state);
+}
+
+void switch2Handler(ButtonState state)
+{
+	genSwitchHandler(1, state);
+}
+
+void genSwitchHandler(uint8_t index, ButtonState state)
+{
+	processTriggers((TriggerType)index);
+}
+
+
+//------------ MIDI Callbacks ------------//
+void controlChangeHandler(byte channel, byte number, byte value)
+{
+	processTriggers(TriggerCC);
+}
+
+void programChangeHandler(byte channel, byte number)
+{
+	if (number < NUM_PRESETS)
+	{
+		goToPreset(number);
+	}
+}
+
+void systemExclusiveHandler(byte* array, unsigned size)
 {
 
 }
