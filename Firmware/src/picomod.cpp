@@ -21,6 +21,11 @@ Preset preset;
 // LEDs
 Adafruit_NeoPixel leds(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
+// JSON Parsing
+ParsingStatus parsingStatus;
+char serialRxBuffer[JSON_RX_BUFFER_SIZE];
+
+
 // Private Function Prototypes
 void picoMod_Boot();
 void picoMod_NewDevice();
@@ -45,8 +50,11 @@ void controlChangeHandler(byte channel, byte number, byte value);
 void programChangeHandler(byte channel, byte number);
 void systemExclusiveHandler(byte* array, unsigned size);
 
+void processGlobalConfigPacket(char* buffer);
+void processPresetPacket(char* buffer);
 
-//-------------------- Global Functions --------------------//
+
+//--------------------  --------------------//
 //------------------ System ------------------//
 void picoMod_Init()
 {
@@ -84,6 +92,7 @@ void picoMod_Init()
 
 	// Serial config
 	Serial.begin(9600);
+	parsingStatus = ParsingReady;
 
 	// USB device descriptors
 	USBDevice.setManufacturerDescriptor("Pirate MIDI");
@@ -118,6 +127,47 @@ void picoMod_Init()
 
 	// Active boot actions
 	processTriggers(TriggerBoot);
+}
+void picoMod_SerialRx(uint16_t len)
+{
+	// Compare the current parsing state to the received data packet
+	// Prepare for a new packet
+	if(parsingStatus == ParsingReady)
+	{
+		if(strcmp(serialRxBuffer, "sendGlobal") == 0)
+		{
+			parsingStatus = ParsingGlobal;
+			Serial.println("ok");
+		}
+		else if(strcmp(serialRxBuffer, "sendPreset") == 0)
+		{
+			parsingStatus = ParsingPreset;
+			Serial.println("ok");
+		}
+		else
+		{
+			Serial.println("error");
+		}
+	}
+	// Receive a global config packet
+	else if(parsingStatus == ParsingGlobal)
+	{
+		processGlobalConfigPacket(serialRxBuffer);
+		parsingStatus = ParsingReady;
+		Serial.println("ok");
+	}
+	// Receive a preset packet
+	else if(parsingStatus == ParsingPreset)
+	{
+		processPresetPacket(serialRxBuffer);
+		parsingStatus = ParsingReady;
+		Serial.println("ok");
+	}
+	// Flush the buffer
+	for(uint16_t i=0; i<len; i++)
+	{
+		serialRxBuffer[i] = 0;
+	}
 }
 
 
@@ -496,4 +546,86 @@ void programChangeHandler(byte channel, byte number)
 void systemExclusiveHandler(byte* array, unsigned size)
 {
 
+}
+
+
+//------------- JSON Parsing ------------//
+void processGlobalConfigPacket(char* buffer)
+{
+	// Allocate the JSON document
+	// If you add custom handling, ensure you allow enough memory
+	StaticJsonDocument<200> json;
+
+	// Deserialize the JSON document
+	DeserializationError error = deserializeJson(json, buffer);
+
+	// Test if parsing succeeds.
+	if (error)
+	{
+		Serial.print(F("deserializeJson() failed: "));
+		Serial.println(error.f_str());
+		return;
+	}
+	// Device name
+	const char* newDeviceName = json["deviceName"];
+	strcpy(globalConfig.deviceName, newDeviceName);
+
+	// MIDI channel
+	globalConfig.midiChannel = json["midiChannel"];
+
+	Serial.print("New device name: ");
+	Serial.println(globalConfig.deviceName);
+	Serial.print("MIDI Channel: ");
+	Serial.println(globalConfig.midiChannel);
+}	
+
+void processPresetPacket(char* buffer)
+{
+	// Allocate the JSON document
+	// If you add custom handling, ensure you allow enough memory
+	StaticJsonDocument<200> json;
+
+	// Deserialize the JSON document
+	DeserializationError error = deserializeJson(json, buffer);
+
+	// Test if parsing succeeds.
+	if (error)
+	{
+		Serial.print(F("deserializeJson() failed: "));
+		Serial.println(error.f_str());
+		return;
+	}
+
+	// Record the current preset number and preserve the current preset
+	uint8_t currentPreset = globalConfig.currentPreset;
+	saveCurrentPreset();
+
+	// Find the target preset for the incoming packet and load it
+	uint8_t newPreset = json["index"];
+	globalConfig.currentPreset = newPreset;
+	readCurrentPreset();
+
+	// Process the preset data
+	preset.id = json["id"];
+	preset.expValue = json["expValue"];
+	preset.switch1State = json["switch1State"];
+	preset.switch2State = json["switch2State"];
+	preset.bypassRelayState = json["bypassRelayState"];
+	preset.auxRelayState = json["auxRelayState"];
+	preset.analogSwitchState = json["analogSwitchState"];
+	preset.numActions = json["numActions"];
+
+	// Process all actions
+	for(uint16_t i=0; i<preset.numActions; i++)
+	{
+		preset.actions[i].trigger.type = 
+		if(preset.actions[i].trigger.type < TriggerGpio7)
+		{
+			preset.actions[i].trigger.value.buttonTrigger = 
+	}
+
+	Serial.print("New device name: ");
+	Serial.println(globalConfig.deviceName);
+	Serial.print("MIDI Channel: ");
+	Serial.println(globalConfig.midiChannel);
 }

@@ -9,6 +9,8 @@
 #include "EEPROM.h"
 #include "buttons.h"
 #include "Adafruit_NeoPixel.h"
+#include "ArduinoJson.h"
+
 
 //------------- Pin Definitions -------------//
 // Switch Inputs
@@ -39,10 +41,11 @@
 
 
 //----------- Config Stack Sizes -----------//
-#define NUM_PRESETS			128
-#define NUM_SWITCH_ACTIONS	16
-#define DEVICE_NAME_LEN		16
-#define NUM_SWITCHES			2
+#define NUM_PRESETS				128
+#define NUM_SWITCH_ACTIONS		16
+#define DEVICE_NAME_LEN			16
+#define NUM_SWITCHES				2
+#define JSON_RX_BUFFER_SIZE	1024
 
 
 //-------------- Config Flags --------------//
@@ -53,12 +56,19 @@
 
 
 //------------------ Types -----------------//
+typedef enum
+{
+	ParsingGlobal,
+	ParsingPreset,
+	ParsingReady
+} ParsingStatus;
+
 typedef struct
 {
 	uint8_t bootState;
 	uint8_t midiChannel;
 	uint8_t currentPreset;
-	char deviceName[DEVICE_NAME_LEN];
+	char deviceName[DEVICE_NAME_LEN+1];
 } GlobalConfig;
 
 typedef struct
@@ -163,6 +173,7 @@ typedef struct
 
 typedef struct
 {
+	uint32_t id;
 	uint8_t numActions;
 	Action actions[NUM_SWITCH_ACTIONS];
 	uint16_t expValue;
@@ -182,9 +193,12 @@ extern MCP41 digipot;
 extern GlobalConfig globalConfig;
 extern Preset preset;
 extern Adafruit_NeoPixel leds;
+extern ParsingStatus parsingStatus;
+extern char serialRxBuffer[];
 
 //------------------ System ------------------//
 void picoMod_Init();
+void picoMod_SerialRx(uint16_t len);
 
 //------------------ GPIO -------------------//
 void relayBypassOn();
