@@ -52,6 +52,8 @@ void systemExclusiveHandler(byte* array, unsigned size);
 
 void processGlobalConfigPacket(char* buffer);
 void processPresetPacket(char* buffer);
+void sendGlobalConfigPacket();
+void sendPresetPacket(uint8_t presetIndex);
 
 
 //--------------------  --------------------//
@@ -127,22 +129,37 @@ void picoMod_Init()
 
 	// Active boot actions
 	processTriggers(TriggerBoot);
+	delay(3000);
+	sendGlobalConfigPacket();
 }
+
 void picoMod_SerialRx(uint16_t len)
 {
 	// Compare the current parsing state to the received data packet
 	// Prepare for a new packet
 	if(parsingStatus == ParsingReady)
 	{
+		// Prepare to receive global settings
 		if(strcmp(serialRxBuffer, "sendGlobal") == 0)
 		{
 			parsingStatus = ParsingGlobal;
 			Serial.println("ok");
 		}
+		// Prepare to receive a preset
 		else if(strcmp(serialRxBuffer, "sendPreset") == 0)
 		{
 			parsingStatus = ParsingPreset;
 			Serial.println("ok");
+		}
+		// Request to send the global config settings
+		else if(strcmp(serialRxBuffer, "receivePreset") == 0)
+		{
+			sendPresetPacket(globalConfig.currentPreset);
+		}
+		// Request to send the preset data
+		else if(strcmp(serialRxBuffer, "receiveGlobal") == 0)
+		{
+			sendGlobalConfigPacket();
 		}
 		else
 		{
@@ -549,12 +566,12 @@ void systemExclusiveHandler(byte* array, unsigned size)
 }
 
 
-//------------- JSON Parsing ------------//
+//------------ JSON Handling ------------//
 void processGlobalConfigPacket(char* buffer)
 {
 	// Allocate the JSON document
 	// If you add custom handling, ensure you allow enough memory
-	StaticJsonDocument<200> json;
+	StaticJsonDocument<100> json;
 
 	// Deserialize the JSON document
 	DeserializationError error = deserializeJson(json, buffer);
@@ -583,7 +600,7 @@ void processPresetPacket(char* buffer)
 {
 	// Allocate the JSON document
 	// If you add custom handling, ensure you allow enough memory
-	StaticJsonDocument<200> json;
+	StaticJsonDocument<4096> json;
 
 	// Deserialize the JSON document
 	DeserializationError error = deserializeJson(json, buffer);
@@ -618,14 +635,133 @@ void processPresetPacket(char* buffer)
 	// Process all actions
 	for(uint16_t i=0; i<preset.numActions; i++)
 	{
-		preset.actions[i].trigger.type = 
-		if(preset.actions[i].trigger.type < TriggerGpio7)
+		// Action trigger
+		preset.actions[i].trigger.type = json["actions"][i]["trigger"]["type"];
+		// Button input triggers require the button state
+		if(preset.actions[i].trigger.type <= TriggerGpio7)
 		{
-			preset.actions[i].trigger.value.buttonTrigger = 
+			preset.actions[i].trigger.value.buttonTrigger = json["actions"][i]["trigger"]["value"];
+		}
+		// MIDI CC triggers require the CC number and value
+		else if(preset.actions[i].trigger.type == TriggerCC)
+		{
+			preset.actions[i].trigger.value.midiTrigger.midiNum = json["actions"][i]["trigger"]["number"];
+			preset.actions[i].trigger.value.midiTrigger.midiValue = json["actions"][i]["trigger"]["value"];
+		}
+		// Action event type
+		preset.actions[i].type = json["actions"][i]["type"];
+
+		// Action event
+		// MIDI event
+		if(preset.actions[i].type == ActionEventMidi)
+		{
+			preset.actions[i].event.midiMessage.channel = json["actions"][i]["event"]["channel"];
+			preset.actions[i].event.midiMessage.type = json["actions"][i]["event"]["type"];
+			preset.actions[i].event.midiMessage.data1 = json["actions"][i]["event"]["data1"];
+			preset.actions[i].event.midiMessage.data2 = json["actions"][i]["event"]["data2"];
+		}
+		// Expression event
+		else if(preset.actions[i].type == ActionEventExp)
+		{
+			preset.actions[i].event.expMessage.value = json["actions"][i]["event"]["value"];
+		}
+		// Output event
+		else if(preset.actions[i].type == ActionEventOutput)
+		{
+			preset.actions[i].event.outputMessage.value = json["actions"][i]["event"]["target"];
+			preset.actions[i].event.outputMessage.value = json["actions"][i]["event"]["value"];
+		}
+
+		// LED event
+		else if(preset.actions[i].type == ActionEventLed)
+		{
+			preset.actions[i].event.ledMessage.index = json["actions"][i]["event"]["value"];
+			preset.actions[i].event.ledMessage.colour = json["actions"][i]["event"]["color"];
+		}
 	}
 
-	Serial.print("New device name: ");
-	Serial.println(globalConfig.deviceName);
-	Serial.print("MIDI Channel: ");
-	Serial.println(globalConfig.midiChannel);
+	// Save the preset data
+	saveCurrentPreset();
+
+	// Recall the previous preset
+	globalConfig.currentPreset = currentPreset;
+	readCurrentPreset();
+}
+
+void sendGlobalConfigPacket()
+{
+	// Allocate the JSON document
+	// If you add custom handling, ensure you allow enough memory
+	StaticJsonDocument<100> json;
+	json["currentPreset"] = globalConfig.currentPreset;
+	json["midiChannel"] = globalConfig.midiChannel;
+	json["deviceName"] = globalConfig.deviceName;
+	json["hwVersion"] = HW_VERSION;
+	json["fwVersion"] = FW_VERSION;
+	serializeJson(json, Serial);
+}
+
+void sendPresetPacket(uint8_t presetIndex)
+{
+	// Allocate the JSON document
+	// If you add custom handling, ensure you allow enough memory
+	StaticJsonDocument<4096> json;
+	json["index"] = presetIndex;
+	json["id"] = preset.id;
+	json["switch1State"] = preset.switch1State;
+	json["switch2State"] = preset.switch2State;
+	json["bypassRelayState"] = preset.bypassRelayState;
+	json["auxRelayState"] = preset.auxRelayState;
+	json["analogSwitchState"] = preset.analogSwitchState;
+	json["numActions"] = preset.numActions;
+
+	// Process all actions
+	for(uint16_t i=0; i<preset.numActions; i++)
+	{
+		// Action trigger
+		json["actions"][i]["trigger"]["type"] = preset.actions[i].trigger.type;
+		// Button input triggers require the button state
+		if(preset.actions[i].trigger.type <= TriggerGpio7)
+		{
+			json["actions"][i]["trigger"]["value"] = preset.actions[i].trigger.value.buttonTrigger;
+		}
+		// MIDI CC triggers require the CC number and value
+		else if(preset.actions[i].trigger.type == TriggerCC)
+		{
+			json["actions"][i]["trigger"]["number"] = preset.actions[i].trigger.value.midiTrigger.midiNum;
+			json["actions"][i]["trigger"]["value"]= preset.actions[i].trigger.value.midiTrigger.midiValue;
+		}
+		// Action event type
+		preset.actions[i].type = json["actions"][i]["type"];
+
+		// Action event
+		// MIDI event
+		if(preset.actions[i].type == ActionEventMidi)
+		{
+			json["actions"][i]["event"]["channel"] = preset.actions[i].event.midiMessage.channel;
+			json["actions"][i]["event"]["type"] = preset.actions[i].event.midiMessage.type;
+			json["actions"][i]["event"]["data1"] = preset.actions[i].event.midiMessage.data1;
+			json["actions"][i]["event"]["data2"] = preset.actions[i].event.midiMessage.data2;
+		}
+		// Expression event
+		else if(preset.actions[i].type == ActionEventExp)
+		{
+			json["actions"][i]["event"]["value"] = preset.actions[i].event.expMessage.value;
+		}
+		// Output event
+		else if(preset.actions[i].type == ActionEventOutput)
+		{
+			json["actions"][i]["event"]["target"] = preset.actions[i].event.outputMessage.value;
+			json["actions"][i]["event"]["value"] = preset.actions[i].event.outputMessage.value;
+		}
+
+		// LED event
+		else if(preset.actions[i].type == ActionEventLed)
+		{
+			json["actions"][i]["event"]["value"] = preset.actions[i].event.ledMessage.index;
+			json["actions"][i]["event"]["color"] = preset.actions[i].event.ledMessage.colour;
+		}
+	}
+	
+	serializeJson(json, Serial);
 }

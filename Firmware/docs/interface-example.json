@@ -16,91 +16,337 @@
 			"bypassRelayState": 1,
 			"auxRelayState": 0,
 			"analogSwitchState": 0,
-			"numActions": 4,
+			"numActions": 30,
 			"actions": [
-				{
+				{	
 					"trigger": {
-
+						"type": "switch1",
+						"value": "press"
 					},
 					"type": "midi",
 					"event": {
-
+						"type": "controlChange",
+						"channel": 1,
+						"data1": 60,
+						"data2": 127
 					}
 				},
 				{
 					"trigger": {
-
+						"type": "enterBank"
 					},
 					"type": "exp",
 					"event": {
-
+						"value": 196
 					}
 				},
 				{
 					"trigger": {
-
+						"type": "midiCC",
+						"number": 60,
+						"value": 19
 					},
 					"type": "output",
 					"event": {
-
+						"target": "bypassRelay",
+						"value": "on"
 					}
 				},
 				{
 					"trigger": {
-
+						"type": "gpio4",
+						"value": "toggle"
 					},
 					"type": "led",
 					"event": {
-
-					}
-				}
-			]
-		},
-		{
-			"index": 1,
-			"id": 0,
-			"expValue": 127,
-			"switch1State": 0,
-			"switch2State": 1,
-			"bypassRelayState": 1,
-			"auxRelayState": 0,
-			"analogSwitchState": 0,
-			"numActions": 4,
-			"actions": [
-				{
-					"trigger": {
-
-					},
-					"type": "midi",
-					"event": {
-
+						"index": 1,
+						"color": "1f123d"
 					}
 				},
 				{
 					"trigger": {
-
-					},
-					"type": "exp",
-					"event": {
-
-					}
-				},
-				{
-					"trigger": {
-
-					},
-					"type": "output",
-					"event": {
-
-					}
-				},
-				{
-					"trigger": {
-
+						"type": "gpio4",
+						"value": "toggle"
 					},
 					"type": "led",
 					"event": {
-
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
+					}
+				},
+				{
+					"trigger": {
+						"type": "gpio4",
+						"value": "toggle"
+					},
+					"type": "led",
+					"event": {
+						"index": 1,
+						"color": "1f123d"
 					}
 				}
 			]
