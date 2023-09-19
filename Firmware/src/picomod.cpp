@@ -90,6 +90,7 @@ void picoMod_Init()
 	// LEDs
 	leds.begin();
 	leds.clear();
+	leds.setPixelColor(0, leds.Color(90, 0, 80));
 	leds.show();
 
 	// Serial config
@@ -605,7 +606,7 @@ void processPresetPacket(char* buffer)
 	// Deserialize the JSON document
 	DeserializationError error = deserializeJson(json, buffer);
 
-	// Test if parsing succeeds.
+	// Test if parsing succeeds
 	if (error)
 	{
 		Serial.print(F("deserializeJson() failed: "));
